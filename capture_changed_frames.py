@@ -1,5 +1,6 @@
 import argparse
 import cv2
+import numpy as np
 import os
 import sys
 import time
@@ -15,6 +16,13 @@ CHANGE_THRESHOLD = 5.0    # Mean pixel difference threshold (tune as needed)
 COMPARE_WIDTH = 320       # Downscaled width for comparison
 COMPARE_HEIGHT = 180      # Downscaled height for comparison
 WINDOW_NAME = "Latest captured frame"
+DEFAULT_CAMERA_MATRIX = "camera_matrix.npy"
+DEFAULT_DIST_COEFFS = "dist_coeffs.npy"
+DEFAULT_NEW_CAMERA_MATRIX = "new_camera_matrix.npy"
+DEFAULT_HOMOGRAPHY = "homography.npy"
+DEFAULT_RECTIFIED_WIDTH = 800
+DEFAULT_RECTIFIED_HEIGHT = 1600
+DEFAULT_CROP_RECT = "crop_rect.npy"
 # =================
 
 def save_frame(frame):
@@ -60,6 +68,56 @@ class FrameDisplay:
     def close(self):
         if self.enabled:
             cv2.destroyWindow(WINDOW_NAME)
+
+
+class FrameCropper:
+    """Slices frames using a rect stored in crop_rect.npy (x, y, w, h)."""
+
+    def __init__(self, crop_rect_path: str) -> None:
+        rect = np.load(crop_rect_path)
+        if rect.shape != (4,) and rect.shape != (1, 4):
+            raise ValueError(
+                f"Crop rect in {crop_rect_path} must be [x, y, w, h]; got shape {rect.shape}"
+            )
+        rect = rect.reshape(-1)
+        self.x, self.y, self.w, self.h = [int(v) for v in rect]
+
+    def __call__(self, frame):
+        y2 = self.y + self.h
+        x2 = self.x + self.w
+        if self.x < 0 or self.y < 0 or y2 > frame.shape[0] or x2 > frame.shape[1]:
+            raise ValueError(
+                "Crop rectangle extends outside frame bounds; "
+                "update crop_rect.npy or disable --crop"
+            )
+        return frame[self.y:y2, self.x:x2]
+
+
+class FrameRectifier:
+    """Applies undistort + (optional crop) + perspective warp."""
+
+    def __init__(
+        self,
+        camera_matrix_path: str,
+        dist_coeffs_path: str,
+        new_camera_matrix_path: str,
+        homography_path: str,
+        out_width: int,
+        out_height: int,
+        cropper: Optional[FrameCropper] = None,
+    ) -> None:
+        self.K = np.load(camera_matrix_path)
+        self.dist = np.load(dist_coeffs_path)
+        self.newK = np.load(new_camera_matrix_path)
+        self.H = np.load(homography_path)
+        self.out_size = (int(out_width), int(out_height))
+        self.cropper = cropper
+
+    def __call__(self, frame):
+        undist = cv2.undistort(frame, self.K, self.dist, None, self.newK)
+        if self.cropper:
+            undist = self.cropper(undist)
+        return cv2.warpPerspective(undist, self.H, self.out_size)
 
 def list_available_cameras(max_index: int) -> None:
     print("Probing camera indexes 0..{}".format(max_index))
@@ -127,6 +185,53 @@ def parse_args():
         type=int,
         help="Resize the preview window to this height (ignored when --fullscreen is used)",
     )
+    parser.add_argument(
+        "--rectify",
+        action="store_true",
+        help="Undistort + warp frames using calibration data (radial_snippet integration)",
+    )
+    parser.add_argument(
+        "--camera-matrix-path",
+        default=DEFAULT_CAMERA_MATRIX,
+        help="Path to camera_matrix.npy (used with --rectify)",
+    )
+    parser.add_argument(
+        "--dist-coeffs-path",
+        default=DEFAULT_DIST_COEFFS,
+        help="Path to dist_coeffs.npy (used with --rectify)",
+    )
+    parser.add_argument(
+        "--new-camera-matrix-path",
+        default=DEFAULT_NEW_CAMERA_MATRIX,
+        help="Path to new_camera_matrix.npy (used with --rectify)",
+    )
+    parser.add_argument(
+        "--homography-path",
+        default=DEFAULT_HOMOGRAPHY,
+        help="Path to homography.npy (used with --rectify)",
+    )
+    parser.add_argument(
+        "--rectified-width",
+        type=int,
+        default=DEFAULT_RECTIFIED_WIDTH,
+        help="Width of the warped output frame when --rectify is enabled",
+    )
+    parser.add_argument(
+        "--rectified-height",
+        type=int,
+        default=DEFAULT_RECTIFIED_HEIGHT,
+        help="Height of the warped output frame when --rectify is enabled",
+    )
+    parser.add_argument(
+        "--crop",
+        action="store_true",
+        help="Apply the crop defined in crop_rect.npy (after rectification if enabled)",
+    )
+    parser.add_argument(
+        "--crop-rect-path",
+        default=DEFAULT_CROP_RECT,
+        help="Path to crop_rect.npy storing [x, y, w, h] (used with --crop)",
+    )
     return parser.parse_args()
 
 def main():
@@ -158,13 +263,51 @@ def main():
         size=None if args.fullscreen else display_size,
     )
 
+    cropper: Optional[FrameCropper] = None
+    if args.crop:
+        if not os.path.exists(args.crop_rect_path):
+            raise FileNotFoundError(
+                f"Cannot enable --crop; missing rectangle file {args.crop_rect_path}"
+            )
+        cropper = FrameCropper(args.crop_rect_path)
+
+    rectifier: Optional[FrameRectifier] = None
+    post_rect_cropper = cropper
+    if args.rectify:
+        missing = [
+            path
+            for path in (
+                args.camera_matrix_path,
+                args.dist_coeffs_path,
+                args.new_camera_matrix_path,
+                args.homography_path,
+            )
+            if not os.path.exists(path)
+        ]
+        if missing:
+            missing_str = ", ".join(missing)
+            raise FileNotFoundError(f"Cannot enable --rectify; missing files: {missing_str}")
+        rectifier = FrameRectifier(
+            camera_matrix_path=args.camera_matrix_path,
+            dist_coeffs_path=args.dist_coeffs_path,
+            new_camera_matrix_path=args.new_camera_matrix_path,
+            homography_path=args.homography_path,
+            out_width=args.rectified_width,
+            out_height=args.rectified_height,
+            cropper=cropper,
+        )
+        post_rect_cropper = None
+
     try:
         while True:
-            ret, frame = cap.read()
+            ret, raw_frame = cap.read()
             if not ret:
                 print("Warning: failed to read frame from capture device")
                 time.sleep(POLL_INTERVAL_SEC)
                 continue
+
+            frame = rectifier(raw_frame) if rectifier else raw_frame
+            frame = post_rect_cropper(frame) if post_rect_cropper else frame
 
             frame_small = cv2.resize(frame, (COMPARE_WIDTH, COMPARE_HEIGHT))
             gray_small = cv2.cvtColor(frame_small, cv2.COLOR_BGR2GRAY)
