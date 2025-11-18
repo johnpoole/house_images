@@ -83,14 +83,7 @@ class FrameCropper:
         self.x, self.y, self.w, self.h = [int(v) for v in rect]
 
     def __call__(self, frame):
-        y2 = self.y + self.h
-        x2 = self.x + self.w
-        if self.x < 0 or self.y < 0 or y2 > frame.shape[0] or x2 > frame.shape[1]:
-            raise ValueError(
-                "Crop rectangle extends outside frame bounds; "
-                "update crop_rect.npy or disable --crop"
-            )
-        return frame[self.y:y2, self.x:x2]
+        return frame[self.y:self.y + self.h, self.x:self.x + self.w]
 
 
 class FrameRectifier:
