@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Sheet {{ sheet.number }} - Curling Camera</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+
+        .nav {
+            margin-bottom: 20px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .cameras-container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .camera-card {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .camera-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status {
+            font-size: 0.9em;
+        }
+
+        .status.calibrated {
+            color: green;
+        }
+
+        .status.uncalibrated {
+            color: red;
+        }
+
+        .img-preview {
+            width: 100%;
+            height: auto;
+            max-height: 400px;
+            background: #ddd;
+            object-fit: contain;
+            margin-top: 15px;
+            border: 1px solid #ccc;
+        }
+
+        .actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            font-size: 1em;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav">
+        <a href="{% url 'dashboard' %}">&larr; Back to Sheet List</a>
+    </div>
+
+    <div class="header">
+        <h1>Sheet {{ sheet.number }}</h1>
+    </div>
+
+    <div class="cameras-container">
+        {% for camera in sheet.cameras.all %}
+        <div class="camera-card">
+            <div class="camera-header">
+                <span>{{ camera.get_side_display }} Camera</span>
+                <span class="status {% if camera.is_calibrated %}calibrated{% else %}uncalibrated{% endif %}">
+                    {% if camera.is_calibrated %}Calibrated{% else %}Not Calibrated{% endif %}
+                </span>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <form action="{% url 'update_camera' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
+                    <input type="hidden" name="side" value="{{ camera.side }}">
+                    <label for="device_index_{{ camera.side }}">Device Index:</label>
+                    <select name="device_index" id="device_index_{{ camera.side }}" onchange="this.form.submit()">
+                        {% for idx in available_indices %}
+                        <option value="{{ idx }}" {% if camera.device_index==idx %}selected{% endif %}>
+                            Camera {{ idx }}
+                        </option>
+                        {% endfor %}
+                        {% if camera.device_index not in available_indices %}
+                        <option value="{{ camera.device_index }}" selected>
+                            Camera {{ camera.device_index }} (Current)
+                        </option>
+                        {% endif %}
+                    </select>
+                </form>
+            </div>
+
+            {% with last_frame=camera.frames.first %}
+            {% if last_frame %}
+            <img src="{{ last_frame.image.url }}" class="img-preview">
+            <div class="timestamp">Last captured: {{ last_frame.timestamp }}</div>
+            {% else %}
+            <div class="img-preview"
+                style="display:flex;align-items:center;justify-content:center;color:#999;height:300px;">
+                No Image Available
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <div class="actions">
+                <form action="{% url 'calibrate' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
+                    <input type="hidden" name="side" value="{{ camera.side }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit">Calibrate</button>
+                </form>
+                <form action="{% url 'capture' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
+                    <input type="hidden" name="side" value="{{ camera.side }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit">Capture Frame</button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+
+</html>
