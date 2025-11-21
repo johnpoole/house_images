@@ -187,17 +187,17 @@
                     <input type="hidden" name="side" value="{{ camera.side }}">
                     <label for="device_index_{{ camera.side }}">Device Index:</label>
                     <select name="device_index" id="device_index_{{ camera.side }}" onchange="this.form.submit()">
-                        {% for idx in available_indices %}
-                        {% if camera.device_index == idx %}
-                        <option value="{{ idx }}" selected>Camera {{ idx }}</option>
+                        {% for cam_choice in available_cameras %}
+                        {% if camera.device_index == cam_choice.index %}
+                        <option value="{{ cam_choice.index }}" selected>{{ cam_choice.label }}</option>
                         {% else %}
-                        <option value="{{ idx }}">Camera {{ idx }}</option>
+                        <option value="{{ cam_choice.index }}">{{ cam_choice.label }}</option>
                         {% endif %}
                         {% endfor %}
 
                         {% if camera.device_index not in available_indices %}
                         <option value="{{ camera.device_index }}" selected>
-                            Camera {{ camera.device_index }} (Current)
+                            Device {{ camera.device_index }} (Current)
                         </option>
                         {% endif %}
                     </select>

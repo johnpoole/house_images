@@ -87,7 +87,8 @@
             margin-bottom: 15px;
         }
 
-        .messages li {
+        .messages li,
+        .messages div {
             list-style: none;
             background: #ffe8a1;
             padding: 8px 10px;
@@ -124,7 +125,12 @@
         {% endif %}
 
         <div class="canvas-wrapper">
-            <canvas id="calibrationCanvas" data-image="{{ image_url }}"></canvas>
+            <canvas id="calibrationCanvas"></canvas>
+            <img id="sourceImage" src="{{ image_url }}" alt="Calibration frame" style="display:none;">
+            <div id="imageError" class="messages" style="display:none;">
+                <div>Unable to load the calibration image. Return to the sheet page and refresh the preview before trying
+                    again.</div>
+            </div>
         </div>
 
         <div class="controls">
@@ -149,8 +155,9 @@
     <script>
         const canvas = document.getElementById('calibrationCanvas');
         const ctx = canvas.getContext('2d');
-        const imageUrl = canvas.dataset.image;
         const img = new Image();
+        const fallbackImg = document.getElementById('sourceImage');
+        const imageError = document.getElementById('imageError');
         let imageLoaded = false;
 
         const lines = [];
@@ -171,7 +178,11 @@
             imageLoaded = true;
             redraw();
         };
-        img.src = imageUrl;
+        img.onerror = () => {
+            imageError.style.display = 'block';
+            canvas.style.background = '#111';
+        };
+        img.src = fallbackImg.src;
 
         function redraw() {
             if (!imageLoaded) {

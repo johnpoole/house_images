@@ -13,8 +13,9 @@ from django.views.decorators.http import require_POST
 
 from core.calibration_pipeline import CalibrationComputationError
 from core.calibration_service import create_calibration_session
+from core.capture_utils import capture_single_frame
 from .models import Sheet, Camera, CapturedFrame, CalibrationArtifact, CalibrationSession
-from .utils import list_available_cameras
+from .utils import labeled_camera_choices, list_available_cameras
 
 def dashboard(request):
     sheets = Sheet.objects.all().order_by('number')
@@ -24,6 +25,7 @@ def sheet_detail(request, sheet_id):
     sheet = get_object_or_404(Sheet, number=sheet_id)
 
     available_indices = list_available_cameras(max_range=4)
+    available_cameras = labeled_camera_choices(max_range=4)
 
     frame_prefetch = Prefetch(
         'frames',
@@ -49,6 +51,15 @@ def sheet_detail(request, sheet_id):
     )
     for cam in cameras:
         last_frame = cam.prefetched_frames[0] if cam.prefetched_frames else None
+        if last_frame is None:
+            try:
+                last_frame = capture_single_frame(cam)
+                messages.info(
+                    request,
+                    f"Captured a still for {cam.get_side_display()} camera to seed calibration.",
+                )
+            except RuntimeError as exc:
+                messages.warning(request, f"{cam.get_side_display()} camera: {exc}")
         last_artifact = cam.prefetched_artifacts[0] if cam.prefetched_artifacts else None
         pending_session = None
         for session in getattr(cam, 'prefetched_sessions', []):
@@ -79,6 +90,7 @@ def sheet_detail(request, sheet_id):
     return render(request, 'core/sheet_detail.html', {
         'sheet': sheet,
         'available_indices': available_indices,
+        'available_cameras': available_cameras,
         'camera_cards': camera_cards,
     })
 
@@ -108,14 +120,18 @@ def start_calibration(request, sheet_id, side):
     camera = get_object_or_404(Camera, sheet__number=sheet_id, side=side)
     frame = camera.frames.order_by('-timestamp').first()
     if not frame:
-        messages.error(request, "No captured frame available. Start motion capture once to seed a calibration image.")
-        return redirect('sheet_detail', sheet_id=sheet_id)
+        try:
+            frame = capture_single_frame(camera)
+            messages.info(request, "Captured a fresh still from the camera for calibration.")
+        except RuntimeError as exc:
+            messages.error(request, str(exc))
+            return redirect('sheet_detail', sheet_id=sheet_id)
 
     context = {
         'sheet': camera.sheet,
         'camera': camera,
         'frame': frame,
-        'image_url': frame.image.url,
+        'image_url': request.build_absolute_uri(frame.image.url),
         'next': request.GET.get('next') or request.META.get('HTTP_REFERER') or '',
     }
     return render(request, 'core/calibration.html', context)
