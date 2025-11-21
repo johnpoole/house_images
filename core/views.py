@@ -17,9 +17,36 @@ from core.capture_utils import capture_single_frame
 from .models import Sheet, Camera, CapturedFrame, CalibrationArtifact, CalibrationSession
 from .utils import labeled_camera_choices, list_available_cameras
 
+
+def _frame_exists(frame):
+    if not frame or not frame.image or not frame.image.name:
+        return False
+    try:
+        return os.path.exists(frame.image.path)
+    except (ValueError, OSError):
+        return False
+
 def dashboard(request):
     sheets = Sheet.objects.all().order_by('number')
     return render(request, 'core/dashboard.html', {'sheets': sheets})
+
+def _ensure_frame_available(camera, frame=None):
+    if frame and frame.image and frame.image.name:
+        try:
+            if os.path.exists(frame.image.path):
+                return frame
+        except (ValueError, OSError):
+            pass
+        frame.delete()
+    try:
+        return capture_single_frame(camera)
+    except RuntimeError as exc:
+        messages.warning(
+            None,
+            f"{camera.get_side_display()} camera: {exc}",
+        )
+        return None
+
 
 def sheet_detail(request, sheet_id):
     sheet = get_object_or_404(Sheet, number=sheet_id)
@@ -51,6 +78,9 @@ def sheet_detail(request, sheet_id):
     )
     for cam in cameras:
         last_frame = cam.prefetched_frames[0] if cam.prefetched_frames else None
+        if last_frame and not _frame_exists(last_frame):
+            last_frame.delete()
+            last_frame = None
         if last_frame is None:
             try:
                 last_frame = capture_single_frame(cam)
@@ -119,6 +149,9 @@ def start_calibration(request, sheet_id, side):
 
     camera = get_object_or_404(Camera, sheet__number=sheet_id, side=side)
     frame = camera.frames.order_by('-timestamp').first()
+    if frame and not _frame_exists(frame):
+        frame.delete()
+        frame = None
     if not frame:
         try:
             frame = capture_single_frame(camera)
