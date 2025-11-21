@@ -106,6 +106,28 @@
             font-size: 0.9em;
         }
 
+        .pending-card {
+            margin-top: 15px;
+            padding: 15px;
+            border: 1px solid #f0a500;
+            border-radius: 6px;
+            background: #fff9e6;
+        }
+
+        .pending-header {
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #a06200;
+        }
+
+        .pending-meta {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 10px;
+        }
+
         .artifact-path {
             font-family: monospace;
             font-size: 0.85em;
@@ -217,14 +239,58 @@
             </div>
             {% endif %}
 
+            {% if entry.pending_session %}
+            <div class="pending-card">
+                <div class="pending-header">
+                    <span>Pending calibration ({{ entry.pending_session.created_at|date:"Y-m-d H:i" }})</span>
+                    <span>Click Accept to apply</span>
+                </div>
+                <div class="preview-grid">
+                    <div>
+                        <div class="preview-label">Source Frame</div>
+                        <img src="{{ entry.pending_session.source_image.url }}" class="img-preview">
+                    </div>
+                    {% if entry.pending_session.rectified_preview %}
+                    <div>
+                        <div class="preview-label">Rectified Preview</div>
+                        <img src="{{ entry.pending_session.rectified_preview.url }}" class="img-preview secondary">
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="pending-meta">
+                    <div>Fit error: {{ entry.pending_session.fit_error|default:"-" }}</div>
+                    {% if entry.pending_meta.crop_text %}
+                    <div>Crop: {{ entry.pending_meta.crop_text }}</div>
+                    {% endif %}
+                    {% if entry.pending_meta.best_combo %}
+                    <div>Lens combo (f, k1, k2): {{ entry.pending_meta.best_combo }}</div>
+                    {% endif %}
+                </div>
+                <div class="actions" style="margin-top: 10px;">
+                    <form action="{% url 'accept_calibration' %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="session_id" value="{{ entry.pending_session.id }}">
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <button type="submit">Accept</button>
+                    </form>
+                    <form action="{% url 'reject_calibration' %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="session_id" value="{{ entry.pending_session.id }}">
+                        <input type="hidden" name="next" value="{{ request.path }}">
+                        <button type="submit">Reject</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="actions">
-                <form action="{% url 'calibrate' %}" method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
-                    <input type="hidden" name="side" value="{{ camera.side }}">
-                    <input type="hidden" name="next" value="{{ request.path }}">
+                {% if entry.last_frame %}
+                <form action="{% url 'start_calibration' sheet.number camera.side %}" method="get">
                     <button type="submit">Run Calibration</button>
                 </form>
+                {% else %}
+                <button type="button" disabled title="Capture at least one frame to calibrate.">Run Calibration</button>
+                {% endif %}
                 {% if camera.motion_capture_pid %}
                 <form action="{% url 'stop_motion_capture' %}" method="post">
                     {% csrf_token %}

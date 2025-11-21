@@ -57,3 +57,41 @@ class CalibrationArtifact(models.Model):
 
     def __str__(self):
         return f"{self.camera} - {self.get_artifact_type_display()} ({self.created_at:%Y-%m-%d %H:%M:%S})"
+
+
+class CalibrationSession(models.Model):
+    class Status(models.TextChoices):
+        PENDING = ('pending', 'Pending')
+        ACCEPTED = ('accepted', 'Accepted')
+        REJECTED = ('rejected', 'Rejected')
+
+    camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name='calibration_sessions')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
+    source_image = models.ImageField(upload_to='calibration/source/')
+    rectified_preview = models.ImageField(upload_to='calibration/preview/', blank=True, null=True)
+    fit_error = models.FloatField(blank=True, null=True)
+    crop_rect = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    artifact_dir = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Calibration session {self.id} for {self.camera} ({self.get_status_display()})"
+
+
+class CalibrationLinePoint(models.Model):
+    session = models.ForeignKey(CalibrationSession, on_delete=models.CASCADE, related_name='line_points')
+    line_index = models.IntegerField()
+    point_index = models.IntegerField()
+    x = models.IntegerField()
+    y = models.IntegerField()
+
+    class Meta:
+        ordering = ['line_index', 'point_index']
+
+    def __str__(self):
+        return f"Session {self.session_id} line {self.line_index} point {self.point_index}"

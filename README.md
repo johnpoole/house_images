@@ -40,6 +40,8 @@ If you are on Linux/macOS, drop the `cv2.CAP_DSHOW` flag in scripts that open th
 
 ## Calibration Workflow
 
+> Need the full, click-by-click checklist? See `docs/calibration_steps.md` for the exhaustive version of this workflow, including how to stage artifacts per sheet side and how the Django management command fits in.
+
 1. **Pick distortion coefficients**
    - Run `python undistort_grid.py` to generate `jpeg/undistort_grid.jpg` with candidate `k1/k2` values.
    - Use `python tune_undistort.py` for fine-grained sliders, then press `s` to save `camera_matrix.npy`, `dist_coeffs.npy`, `new_camera_matrix.npy`.

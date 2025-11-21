@@ -2,3 +2,4 @@ captured_frames/*
 **/__pycache__/**
 
 db.sqlite3
+calibration/sessions/captures/*

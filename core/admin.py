@@ -1,5 +1,12 @@
 from django.contrib import admin
-from .models import Sheet, Camera, CapturedFrame, CalibrationArtifact
+from .models import (
+    Sheet,
+    Camera,
+    CapturedFrame,
+    CalibrationArtifact,
+    CalibrationSession,
+    CalibrationLinePoint,
+)
 
 @admin.register(Sheet)
 class SheetAdmin(admin.ModelAdmin):
@@ -24,3 +31,18 @@ class CapturedFrameAdmin(admin.ModelAdmin):
 class CalibrationArtifactAdmin(admin.ModelAdmin):
     list_display = ('camera', 'artifact_type', 'created_at')
     list_filter = ('artifact_type', 'camera__sheet', 'camera__side')
+
+
+class CalibrationLinePointInline(admin.TabularInline):
+    model = CalibrationLinePoint
+    extra = 0
+    fields = ('line_index', 'point_index', 'x', 'y')
+    readonly_fields = ('line_index', 'point_index', 'x', 'y')
+
+
+@admin.register(CalibrationSession)
+class CalibrationSessionAdmin(admin.ModelAdmin):
+    list_display = ('camera', 'status', 'fit_error', 'created_at')
+    list_filter = ('status', 'camera__sheet', 'camera__side')
+    readonly_fields = ('created_at', 'updated_at', 'artifact_dir')
+    inlines = [CalibrationLinePointInline]

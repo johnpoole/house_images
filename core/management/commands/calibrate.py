@@ -1,15 +1,19 @@
 import cv2
-import json
 import os
 from datetime import datetime
+
 from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandError
-from core.models import Camera, CalibrationArtifact
+
+from core.calibration_pipeline import CalibrationComputationError
+from core.calibration_service import create_calibration_session
+from core.models import Camera
 
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
 LATEST_FRAME_ALIAS = 'latest_frame.jpg'
+SESSION_OUTPUT_ROOT = os.path.join(settings.BASE_DIR, 'calibration', 'sessions')
 
 class Command(BaseCommand):
     help = 'Runs interactive calibration for a camera'
@@ -27,48 +31,29 @@ class Command(BaseCommand):
             camera = Camera.objects.get(sheet__number=sheet_num, side=side)
         except Camera.DoesNotExist as exc:
             raise CommandError(f"Camera for Sheet {sheet_num} ({side}) not found in DB") from exc
-            
-        # Define calibration directory
-        calib_dir = os.path.join("calibration", f"sheet{sheet_num}_{side}")
-        os.makedirs(calib_dir, exist_ok=True)
-        
+
         self.stdout.write(self.style.SUCCESS(f"Starting calibration for {camera}"))
-        self.stdout.write(f"Output directory: {calib_dir}")
         image_path = options.get('image')
         if image_path:
             if not os.path.exists(image_path):
                 raise CommandError(f"Could not find reference image at {image_path}")
         else:
-            image_path = self._capture_reference_frame(camera, calib_dir)
+            image_path = self._capture_reference_frame(camera)
 
         lines = self._collect_line_points(image_path)
         if not lines:
             raise CommandError("No lines were recorded; calibration aborted.")
 
-        serialized_lines = [[[int(pt[0]), int(pt[1])] for pt in line] for line in lines]
-        artifact_payload = {'lines': serialized_lines}
+        try:
+            create_calibration_session(camera, image_path, lines)
+        except CalibrationComputationError as exc:
+            raise CommandError(str(exc)) from exc
 
-        lines_file = os.path.join(calib_dir, f"line_points_{camera.id}.json")
-        with open(lines_file, 'w', encoding='utf-8') as handle:
-            json.dump(artifact_payload, handle, indent=2)
+        self.stdout.write(self.style.SUCCESS(
+            "Calibration session captured. Review and accept it from the Django sheet page."
+        ))
 
-        artifact = CalibrationArtifact.objects.create(
-            camera=camera,
-            artifact_type=CalibrationArtifact.ArtifactType.LINE_POINTS,
-            data=artifact_payload,
-            source_image_path=os.path.abspath(image_path),
-            artifact_file=os.path.abspath(lines_file),
-            notes=f"Collected {len(lines)} line(s) via calibrate command"
-        )
-
-        camera.calibration_dir = calib_dir
-        camera.is_calibrated = True
-        camera.save()
-
-        self.stdout.write(self.style.SUCCESS(f"Stored line clicks in {lines_file} and DB artifact #{artifact.id}"))
-        self.stdout.write(self.style.SUCCESS(f"Updated camera record. Calibration dir: {calib_dir}"))
-
-    def _capture_reference_frame(self, camera, calib_dir):
+    def _capture_reference_frame(self, camera):
         cap = cv2.VideoCapture(camera.device_index, cv2.CAP_DSHOW)
         if not cap.isOpened():
             raise CommandError(f"Cannot open camera index {camera.device_index} for calibration capture")
@@ -79,9 +64,10 @@ class Command(BaseCommand):
         if not ret:
             raise CommandError("Failed to grab frame from camera")
 
-        os.makedirs(calib_dir, exist_ok=True)
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        capture_path = os.path.join(calib_dir, f'calibration_frame_{ts}.jpg')
+        capture_dir = os.path.join(SESSION_OUTPUT_ROOT, 'captures')
+        os.makedirs(capture_dir, exist_ok=True)
+        capture_path = os.path.join(capture_dir, f'sheet{camera.sheet.number}_{camera.side}_{ts}.jpg')
         cv2.imwrite(capture_path, frame)
 
         os.makedirs(CAPTURED_FRAMES_DIR, exist_ok=True)

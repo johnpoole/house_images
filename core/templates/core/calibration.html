@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Calibrate Sheet {{ sheet.number }} - {{ camera.get_side_display }}</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .nav {
+            margin-bottom: 20px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #007bff;
+            font-weight: bold;
+        }
+
+        .layout {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        canvas {
+            width: 100%;
+            max-width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: #000;
+            cursor: crosshair;
+        }
+
+        .canvas-wrapper {
+            max-width: 960px;
+            margin: 0 auto;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 8px 14px;
+            border: none;
+            border-radius: 4px;
+            background: #0d6efd;
+            color: white;
+            font-size: 1em;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            background: #ccc;
+        }
+
+        .summary {
+            margin-top: 10px;
+            font-size: 0.95em;
+            color: #444;
+        }
+
+        .instructions {
+            margin-bottom: 20px;
+            color: #555;
+        }
+
+        .messages {
+            margin-bottom: 15px;
+        }
+
+        .messages li {
+            list-style: none;
+            background: #ffe8a1;
+            padding: 8px 10px;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            border: 1px solid #ffd65a;
+        }
+
+        .submit-row {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="nav">
+        <a href="{% url 'sheet_detail' sheet.number %}">&larr; Back to Sheet {{ sheet.number }}</a>
+    </div>
+
+    <div class="layout">
+        <h1>Calibrate Sheet {{ sheet.number }} - {{ camera.get_side_display }} Camera</h1>
+        <p class="instructions">
+            Click along each of the three sheet lines. Press <strong>n</strong> (or the "Finish Line" button) after each
+            line, and press <strong>s</strong> or "Save Lines" when all three are complete. The points are stored exactly
+            as displayed on this frame.
+        </p>
+
+        {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="canvas-wrapper">
+            <canvas id="calibrationCanvas" data-image="{{ image_url }}"></canvas>
+        </div>
+
+        <div class="controls">
+            <button type="button" id="finishLine">Finish Line (n)</button>
+            <button type="button" class="secondary" id="undoLine">Undo Last Line</button>
+            <button type="button" class="danger" id="resetLines">Clear All</button>
+        </div>
+
+        <div class="summary" id="lineSummary">No points collected yet.</div>
+
+        <form id="calibrationForm" class="submit-row" method="post" action="{% url 'submit_calibration' %}">
+            {% csrf_token %}
+            <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
+            <input type="hidden" name="side" value="{{ camera.side }}">
+            <input type="hidden" name="frame_id" value="{{ frame.id }}">
+            <input type="hidden" name="next" value="{{ next }}">
+            <input type="hidden" name="lines_json" id="lineData">
+            <button type="submit">Save Lines (s)</button>
+        </form>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('calibrationCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageUrl = canvas.dataset.image;
+        const img = new Image();
+        let imageLoaded = false;
+
+        const lines = [];
+        let currentLine = [];
+
+        const summaryEl = document.getElementById('lineSummary');
+        const finishLineBtn = document.getElementById('finishLine');
+        const undoLineBtn = document.getElementById('undoLine');
+        const resetBtn = document.getElementById('resetLines');
+        const form = document.getElementById('calibrationForm');
+        const lineInput = document.getElementById('lineData');
+
+        img.onload = () => {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            canvas.style.maxWidth = '100%';
+            canvas.style.height = 'auto';
+            imageLoaded = true;
+            redraw();
+        };
+        img.src = imageUrl;
+
+        function redraw() {
+            if (!imageLoaded) {
+                return;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#00c3ff';
+            ctx.fillStyle = '#00c3ff';
+
+            lines.forEach((line, idx) => drawLine(line, idx));
+            drawLine(currentLine, lines.length, true);
+        }
+
+        function drawLine(line, idx, isCurrent = false) {
+            if (!line || line.length === 0) {
+                return;
+            }
+            ctx.beginPath();
+            ctx.strokeStyle = isCurrent ? '#ff6b00' : '#00c3ff';
+            ctx.fillStyle = ctx.strokeStyle;
+            line.forEach((point, index) => {
+                if (index === 0) {
+                    ctx.moveTo(point.x, point.y);
+                } else {
+                    ctx.lineTo(point.x, point.y);
+                }
+            });
+            ctx.stroke();
+            line.forEach(point => {
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.font = '14px sans-serif';
+            ctx.fillText(isCurrent ? `Line ${idx + 1} (current)` : `Line ${idx + 1}`, line[0].x + 6, line[0].y - 6);
+        }
+
+        function addPoint(event) {
+            if (!imageLoaded) {
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (event.clientX - rect.left) * scaleX;
+            const y = (event.clientY - rect.top) * scaleY;
+            currentLine.push({ x, y });
+            redraw();
+            updateSummary();
+        }
+
+        function finalizeLine() {
+            if (currentLine.length === 0) {
+                return;
+            }
+            lines.push(currentLine.slice());
+            currentLine = [];
+            redraw();
+            updateSummary();
+        }
+
+        function undoLine() {
+            if (currentLine.length > 0) {
+                currentLine = [];
+            } else {
+                lines.pop();
+            }
+            redraw();
+            updateSummary();
+        }
+
+        function resetLines() {
+            lines.length = 0;
+            currentLine = [];
+            redraw();
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const totalPoints = lines.reduce((acc, line) => acc + line.length, 0) + currentLine.length;
+            if (totalPoints === 0) {
+                summaryEl.textContent = 'No points collected yet.';
+                return;
+            }
+            summaryEl.textContent = `Lines saved: ${lines.length}. Points in current line: ${currentLine.length}. Total points: ${totalPoints}.`;
+        }
+
+        canvas.addEventListener('click', addPoint);
+        finishLineBtn.addEventListener('click', finalizeLine);
+        undoLineBtn.addEventListener('click', undoLine);
+        resetBtn.addEventListener('click', resetLines);
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key.toLowerCase() === 'n') {
+                event.preventDefault();
+                finalizeLine();
+            }
+            if (event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                form.requestSubmit();
+            }
+        });
+
+        form.addEventListener('submit', (event) => {
+            if (currentLine.length > 0) {
+                finalizeLine();
+            }
+            if (lines.length < 3) {
+                event.preventDefault();
+                alert('Please finish three lines (far hog, center, near hog) before saving.');
+                return;
+            }
+            const payload = lines.map(line => line.map(pt => [Math.round(pt.x), Math.round(pt.y)]));
+            lineInput.value = JSON.stringify(payload);
+        });
+    </script>
+</body>
+
+</html>
