@@ -225,6 +225,15 @@
                     <input type="hidden" name="next" value="{{ request.path }}">
                     <button type="submit">Run Calibration</button>
                 </form>
+                {% if camera.motion_capture_pid %}
+                <form action="{% url 'stop_motion_capture' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
+                    <input type="hidden" name="side" value="{{ camera.side }}">
+                    <input type="hidden" name="next" value="{{ request.path }}">
+                    <button type="submit">Stop Motion Capture</button>
+                </form>
+                {% else %}
                 <form action="{% url 'motion_capture' %}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
@@ -232,6 +241,7 @@
                     <input type="hidden" name="next" value="{{ request.path }}">
                     <button type="submit">Start Motion Capture</button>
                 </form>
+                {% endif %}
             </div>
         </div>
         {% endwith %}

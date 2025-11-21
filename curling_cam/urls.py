@@ -12,4 +12,5 @@ urlpatterns = [
     path('calibrate/', views.trigger_calibrate, name='calibrate'),
     path('motion-capture/', views.trigger_motion_capture, name='motion_capture'),
     path('capture/', views.trigger_motion_capture, name='capture'),
+    path('stop-motion-capture/', views.stop_motion_capture, name='stop_motion_capture'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
