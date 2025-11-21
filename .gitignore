@@ -3,3 +3,4 @@ captured_frames/*
 
 db.sqlite3
 calibration/sessions/captures/*
+*.pyc
