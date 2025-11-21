@@ -1,4 +1,5 @@
 import os
+import signal
 import subprocess
 import sys
 
@@ -89,6 +90,11 @@ def trigger_motion_capture(request):
             messages.error(request, "Invalid sheet number supplied for motion capture.")
             return redirect(next_url)
 
+        camera = get_object_or_404(Camera, sheet__number=sheet_num_int, side=side)
+        if camera.motion_capture_pid:
+            messages.warning(request, "Motion capture already appears to be running. Stop it before starting a new session.")
+            return redirect(next_url)
+
         manage_py = os.path.join(settings.BASE_DIR, 'manage.py')
         cmd = [sys.executable, manage_py, 'capture', '--sheet', str(sheet_num_int), '--camera', side]
 
@@ -97,9 +103,54 @@ def trigger_motion_capture(request):
             creationflags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
 
         try:
-            subprocess.Popen(cmd, cwd=settings.BASE_DIR, creationflags=creationflags)
-            messages.success(request, f"Started motion capture for Sheet {sheet_num} {side}. Stop it manually when finished.")
+            proc = subprocess.Popen(cmd, cwd=settings.BASE_DIR, creationflags=creationflags)
+            camera.motion_capture_pid = proc.pid
+            camera.save(update_fields=['motion_capture_pid'])
+            messages.success(request, f"Started motion capture for Sheet {sheet_num} {side}. Use Stop to end it.")
         except Exception as exc:
             messages.error(request, f"Failed to launch motion capture: {exc}")
         return redirect(next_url)
     return redirect('dashboard')
+
+
+def stop_motion_capture(request):
+    if request.method == 'POST':
+        sheet_num = request.POST.get('sheet_id')
+        side = request.POST.get('side')
+        next_url = request.POST.get('next', 'dashboard')
+
+        try:
+            sheet_num_int = int(sheet_num)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid sheet number supplied for stopping motion capture.")
+            return redirect(next_url)
+
+        camera = get_object_or_404(Camera, sheet__number=sheet_num_int, side=side)
+        pid = camera.motion_capture_pid
+        if not pid:
+            messages.info(request, "No running motion capture process was recorded for this camera.")
+            return redirect(next_url)
+
+        if _terminate_process(pid):
+            camera.motion_capture_pid = None
+            camera.save(update_fields=['motion_capture_pid'])
+            messages.success(request, f"Stopped motion capture for Sheet {sheet_num} {side}.")
+        else:
+            messages.warning(request, "Could not confirm process termination; it may have already exited.")
+            camera.motion_capture_pid = None
+            camera.save(update_fields=['motion_capture_pid'])
+        return redirect(next_url)
+    return redirect('dashboard')
+
+
+def _terminate_process(pid):
+    try:
+        if os.name == 'nt':
+            os.kill(pid, signal.CTRL_BREAK_EVENT)
+        else:
+            os.kill(pid, signal.SIGTERM)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return False

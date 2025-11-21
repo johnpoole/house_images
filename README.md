@@ -114,6 +114,7 @@ Visit `http://localhost:8000/` to reach the dashboard. The views use `core.utils
    4. The sheet detail page now shows both the raw and rectified previews (when available) alongside the metadata from the most recent `CalibrationArtifact`.
 
    The **Run Calibration** button on the sheet detail page invokes the calibrate flow above (including grabbing a fresh still before the mouse-click step). **Start Motion Capture** fires off the `capture` management command in the background so it can continue saving frames whenever motion is detected, even after the web request returns.
+   If a capture session is already running for that camera, the UI automatically switches the button label to **Stop Motion Capture** so you can terminate the stored PID without leaving the dashboard.
 
 ## Troubleshooting
 

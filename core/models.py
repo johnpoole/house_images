@@ -16,6 +16,7 @@ class Camera(models.Model):
     device_index = models.IntegerField(help_text="Camera device index (e.g. 0, 1, 2)")
     is_calibrated = models.BooleanField(default=False)
     calibration_dir = models.CharField(max_length=255, blank=True, help_text="Path to calibration files")
+    motion_capture_pid = models.IntegerField(null=True, blank=True, help_text="PID of the running capture process, if any")
 
     class Meta:
         unique_together = ('sheet', 'side')

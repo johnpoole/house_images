@@ -7,7 +7,7 @@ class SheetAdmin(admin.ModelAdmin):
 
 @admin.register(Camera)
 class CameraAdmin(admin.ModelAdmin):
-    list_display = ('sheet', 'side', 'device_index', 'is_calibrated')
+    list_display = ('sheet', 'side', 'device_index', 'is_calibrated', 'motion_capture_pid')
     list_filter = ('sheet', 'side', 'is_calibrated')
 
 @admin.register(CapturedFrame)

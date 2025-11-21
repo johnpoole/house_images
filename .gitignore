@@ -1,5 +1,3 @@
 captured_frames/*
-core/__pycache__/admin.cpython-311.pyc
-core/__pycache__/models.cpython-311.pyc
-core/__pycache__/views.cpython-311.pyc
-curling_cam/__pycache__/urls.cpython-311.pyc
+**/__pycache__/**
+
