@@ -96,14 +96,34 @@ def trigger_motion_capture(request):
             return redirect(next_url)
 
         manage_py = os.path.join(settings.BASE_DIR, 'manage.py')
-        cmd = [sys.executable, manage_py, 'capture', '--sheet', str(sheet_num_int), '--camera', side]
-
-        creationflags = 0
+        python_exec = sys.executable
         if os.name == 'nt':
-            creationflags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+            pythonw = os.path.join(os.path.dirname(sys.executable), 'pythonw.exe')
+            if os.path.exists(pythonw):
+                python_exec = pythonw
+        cmd = [python_exec, manage_py, 'capture', '--sheet', str(sheet_num_int), '--camera', side]
+
+        popen_kwargs = {
+            'cwd': settings.BASE_DIR,
+            'stdout': subprocess.DEVNULL,
+            'stderr': subprocess.DEVNULL,
+            'close_fds': True,
+        }
+        if os.name == 'nt':
+            creationflags = (
+                getattr(subprocess, 'DETACHED_PROCESS', 0)
+                | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+                | getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            )
+            popen_kwargs['creationflags'] = creationflags
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            popen_kwargs['startupinfo'] = startupinfo
+        else:
+            popen_kwargs['start_new_session'] = True
 
         try:
-            proc = subprocess.Popen(cmd, cwd=settings.BASE_DIR, creationflags=creationflags)
+            proc = subprocess.Popen(cmd, **popen_kwargs)
             camera.motion_capture_pid = proc.pid
             camera.save(update_fields=['motion_capture_pid'])
             messages.success(request, f"Started motion capture for Sheet {sheet_num} {side}. Use Stop to end it.")
@@ -146,11 +166,17 @@ def stop_motion_capture(request):
 def _terminate_process(pid):
     try:
         if os.name == 'nt':
-            os.kill(pid, signal.CTRL_BREAK_EVENT)
+            completed = subprocess.run(
+                ['taskkill', '/PID', str(pid), '/T', '/F'],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return completed.returncode == 0
         else:
-            os.kill(pid, signal.SIGTERM)
+            if hasattr(os, 'killpg'):
+                os.killpg(pid, signal.SIGTERM)
+            else:
+                os.kill(pid, signal.SIGTERM)
         return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
+    except (ProcessLookupError, PermissionError, OSError, subprocess.SubprocessError):
         return False
