@@ -1,14 +1,17 @@
+import os
 import cv2
 import json
 import numpy as np
 
-IMAGE_PATH = "sample_sheet.jpg"
+JPEG_DIR = "jpeg"
+
+IMAGE_PATH = os.path.join(JPEG_DIR, "sample_sheet.jpg")
 LINES_JSON = "sheet_lines.json"
 
 CAMERA_MATRIX_OUT = "camera_matrix.npy"
 DIST_COEFFS_OUT   = "dist_coeffs.npy"
 NEW_CAMERA_OUT    = "new_camera_matrix.npy"
-UNDIST_PREVIEW    = "undist_best.jpg"
+UNDIST_PREVIEW    = os.path.join(JPEG_DIR, "undist_best.jpg")
 
 with open(LINES_JSON, "r") as f:
     data = json.load(f)
@@ -88,6 +91,7 @@ np.save(DIST_COEFFS_OUT, best_dist)
 np.save(NEW_CAMERA_OUT, newK)
 
 undist = cv2.undistort(img, best_K, best_dist, None, newK)
+os.makedirs(JPEG_DIR, exist_ok=True)
 cv2.imwrite(UNDIST_PREVIEW, undist)
 print("Saved:")
 print(" ", CAMERA_MATRIX_OUT)

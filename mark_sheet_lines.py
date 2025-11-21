@@ -1,7 +1,9 @@
+import os
 import cv2
 import json
 
-IMAGE_PATH = "sample_sheet.jpg"   # raw distorted frame
+JPEG_DIR = "jpeg"
+IMAGE_PATH = os.path.join(JPEG_DIR, "sample_sheet.jpg")   # raw distorted frame
 OUT_JSON   = "sheet_lines.json"
 
 img = cv2.imread(IMAGE_PATH)

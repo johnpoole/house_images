@@ -1,7 +1,9 @@
+import os
 import cv2
 import numpy as np
 
-IMAGE_PATH = "sample_sheet.jpg"   # your distorted image
+JPEG_DIR = "jpeg"
+IMAGE_PATH = os.path.join(JPEG_DIR, "sample_sheet.jpg")   # your distorted image
 
 img = cv2.imread(IMAGE_PATH)
 if img is None:

@@ -1,13 +1,15 @@
+import os
 import cv2
 import json
 import numpy as np
 
-IMG_PATH      = "undist_best.jpg"
+JPEG_DIR      = "jpeg"
+IMG_PATH      = os.path.join(JPEG_DIR, "undist_best.jpg")
 LINES_JSON    = "sheet_lines.json"
 K_PATH        = "camera_matrix.npy"
 DIST_PATH     = "dist_coeffs.npy"
 NEWK_PATH     = "new_camera_matrix.npy"
-CROP_OUT_IMG  = "undist_cropped.jpg"
+CROP_OUT_IMG  = os.path.join(JPEG_DIR, "undist_cropped.jpg")
 CROP_RECT_NPY = "crop_rect.npy"   # [x, y, w, h]
 
 MARGIN = 4  # pixels to move inside each boundary
@@ -76,6 +78,7 @@ cw = x_right - x_left
 ch = y_bot - y_top
 
 crop = img[y_top:y_top+ch, x_left:x_left+cw]
+os.makedirs(JPEG_DIR, exist_ok=True)
 cv2.imwrite(CROP_OUT_IMG, crop)
 np.save(CROP_RECT_NPY, np.array([x_left, y_top, cw, ch], dtype=np.int32))
 

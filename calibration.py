@@ -1,8 +1,12 @@
+import os
 import cv2
 import numpy as np
 
+JPEG_DIR = "jpeg"
+
 # Input image from your capture (distorted)
-IMAGE_PATH = "sample_sheet.jpg"
+IMAGE_PATH = os.path.join(JPEG_DIR, "sample_sheet.jpg")
+WARPED_PREVIEW_PATH = os.path.join(JPEG_DIR, "warped_preview.jpg")
 
 # Output size after correction (tune as needed)
 OUT_WIDTH = 800     # horizontal pixels
@@ -57,5 +61,6 @@ np.save("homography.npy", H)
 
 # Preview
 warped = cv2.warpPerspective(img, H, (OUT_WIDTH, OUT_HEIGHT))
-cv2.imwrite("warped_preview.jpg", warped)
-print("Saved homography.npy and warped_preview.jpg")
+os.makedirs(JPEG_DIR, exist_ok=True)
+cv2.imwrite(WARPED_PREVIEW_PATH, warped)
+print("Saved homography.npy and", WARPED_PREVIEW_PATH)

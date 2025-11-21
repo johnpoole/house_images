@@ -1,8 +1,11 @@
+import os
 import cv2
 import numpy as np
 
-IMAGE_PATH = "sample_sheet.jpg"  # first uploaded distorted image
-OUT_PATH   = "undistort_grid.jpg"
+JPEG_DIR = "jpeg"
+
+IMAGE_PATH = os.path.join(JPEG_DIR, "sample_sheet.jpg")  # first uploaded distorted image
+OUT_PATH   = os.path.join(JPEG_DIR, "undistort_grid.jpg")
 
 img = cv2.imread(IMAGE_PATH)
 if img is None:
@@ -63,5 +66,6 @@ for i, t in enumerate(thumbs):
     c = i % cols
     grid[r*thumb_h:(r+1)*thumb_h, c*thumb_w:(c+1)*thumb_w] = t
 
+os.makedirs(JPEG_DIR, exist_ok=True)
 cv2.imwrite(OUT_PATH, grid)
 print(f"Saved {OUT_PATH}. Open it and choose the best index.")

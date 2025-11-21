@@ -26,6 +26,7 @@ class Camera(models.Model):
 class CapturedFrame(models.Model):
     camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name='frames')
     image = models.ImageField(upload_to='frames/')
+    rectified_image = models.ImageField(upload_to='frames/rectified/', blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -33,3 +34,25 @@ class CapturedFrame(models.Model):
 
     def __str__(self):
         return f"{self.camera} - {self.timestamp}"
+
+
+class CalibrationArtifact(models.Model):
+    class ArtifactType(models.TextChoices):
+        LINE_POINTS = ('line_points', 'Line Points')
+        HOMOGRAPHY = ('homography', 'Homography Matrix')
+        RADIAL = ('radial', 'Radial Distortion')
+        OTHER = ('other', 'Other')
+
+    camera = models.ForeignKey(Camera, on_delete=models.CASCADE, related_name='calibration_artifacts')
+    artifact_type = models.CharField(max_length=32, choices=ArtifactType.choices, default=ArtifactType.LINE_POINTS)
+    data = models.JSONField(default=dict, blank=True)
+    source_image_path = models.CharField(max_length=255, blank=True)
+    artifact_file = models.CharField(max_length=255, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.camera} - {self.get_artifact_type_display()} ({self.created_at:%Y-%m-%d %H:%M:%S})"

@@ -74,10 +74,46 @@
             border: 1px solid #ccc;
         }
 
+        .img-preview.secondary {
+            border-color: #94c0ff;
+        }
+
+        .preview-grid {
+            display: grid;
+            gap: 15px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        }
+
+        .preview-label {
+            font-size: 0.85em;
+            font-weight: bold;
+            color: #555;
+            margin-top: 10px;
+        }
+
         .actions {
             margin-top: 15px;
             display: flex;
             gap: 10px;
+        }
+
+        .artifact-card {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f8fbff;
+            border: 1px solid #cfe2ff;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+
+        .artifact-path {
+            font-family: monospace;
+            font-size: 0.85em;
+            margin-top: 4px;
+        }
+
+        .artifact-notes {
+            margin-top: 6px;
         }
 
         button {
@@ -112,7 +148,8 @@
     </div>
 
     <div class="cameras-container">
-        {% for camera in sheet.cameras.all %}
+        {% for entry in camera_cards %}
+        {% with camera=entry.camera last_frame=entry.last_frame artifact=entry.last_artifact %}
         <div class="camera-card">
             <div class="camera-header">
                 <span>{{ camera.get_side_display }} Camera</span>
@@ -129,22 +166,36 @@
                     <label for="device_index_{{ camera.side }}">Device Index:</label>
                     <select name="device_index" id="device_index_{{ camera.side }}" onchange="this.form.submit()">
                         {% for idx in available_indices %}
-                        <option value="{{ idx }}" {% if camera.device_index==idx %}selected{% endif %}>
-                            Camera {{ idx }}
-                        </option>
+                        {% if camera.device_index == idx %}
+                        <option value="{{ idx }}" selected>Camera {{ idx }}</option>
+                        {% else %}
+                        <option value="{{ idx }}">Camera {{ idx }}</option>
+                        {% endif %}
                         {% endfor %}
+
                         {% if camera.device_index not in available_indices %}
                         <option value="{{ camera.device_index }}" selected>
                             Camera {{ camera.device_index }} (Current)
                         </option>
                         {% endif %}
                     </select>
+
                 </form>
             </div>
 
-            {% with last_frame=camera.frames.first %}
             {% if last_frame %}
-            <img src="{{ last_frame.image.url }}" class="img-preview">
+            <div class="preview-grid">
+                <div>
+                    <div class="preview-label">Raw Frame</div>
+                    <img src="{{ last_frame.image.url }}" class="img-preview">
+                </div>
+                {% if last_frame.rectified_image %}
+                <div>
+                    <div class="preview-label">Rectified Frame</div>
+                    <img src="{{ last_frame.rectified_image.url }}" class="img-preview secondary">
+                </div>
+                {% endif %}
+            </div>
             <div class="timestamp">Last captured: {{ last_frame.timestamp }}</div>
             {% else %}
             <div class="img-preview"
@@ -152,7 +203,19 @@
                 No Image Available
             </div>
             {% endif %}
-            {% endwith %}
+
+            {% if artifact %}
+            <div class="artifact-card">
+                <div><strong>Last calibration:</strong> {{ artifact.created_at|date:"Y-m-d H:i" }}</div>
+                <div>Type: {{ artifact.get_artifact_type_display }}</div>
+                {% if artifact.artifact_file %}
+                <div class="artifact-path">File: {{ artifact.artifact_file }}</div>
+                {% endif %}
+                {% if artifact.notes %}
+                <div class="artifact-notes">{{ artifact.notes }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
 
             <div class="actions">
                 <form action="{% url 'calibrate' %}" method="post">
@@ -171,6 +234,7 @@
                 </form>
             </div>
         </div>
+        {% endwith %}
         {% endfor %}
     </div>
 </body>
