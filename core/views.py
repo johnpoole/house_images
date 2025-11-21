@@ -1,3 +1,8 @@
+import os
+import subprocess
+import sys
+
+from django.conf import settings
 from django.db.models import Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
 from django.core.management import call_command
@@ -72,15 +77,29 @@ def trigger_calibrate(request):
         return redirect(next_url)
     return redirect('dashboard')
 
-def trigger_capture(request):
+def trigger_motion_capture(request):
     if request.method == 'POST':
         sheet_num = request.POST.get('sheet_id')
         side = request.POST.get('side')
         next_url = request.POST.get('next', 'dashboard')
+
         try:
-            call_command('capture', sheet=int(sheet_num), camera=side, poll_interval=1.0, threshold=5.0, max_frames=1)
-            messages.success(request, f"Captured frame for Sheet {sheet_num} {side}")
-        except Exception as e:
-            messages.error(request, f"Error: {str(e)}")
+            sheet_num_int = int(sheet_num)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid sheet number supplied for motion capture.")
+            return redirect(next_url)
+
+        manage_py = os.path.join(settings.BASE_DIR, 'manage.py')
+        cmd = [sys.executable, manage_py, 'capture', '--sheet', str(sheet_num_int), '--camera', side]
+
+        creationflags = 0
+        if os.name == 'nt':
+            creationflags = getattr(subprocess, 'DETACHED_PROCESS', 0) | getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+
+        try:
+            subprocess.Popen(cmd, cwd=settings.BASE_DIR, creationflags=creationflags)
+            messages.success(request, f"Started motion capture for Sheet {sheet_num} {side}. Stop it manually when finished.")
+        except Exception as exc:
+            messages.error(request, f"Failed to launch motion capture: {exc}")
         return redirect(next_url)
     return redirect('dashboard')

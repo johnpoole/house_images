@@ -113,6 +113,8 @@ Visit `http://localhost:8000/` to reach the dashboard. The views use `core.utils
    3. If the camera has a full calibration directory, the command loads those `.npy` files, undistorts/warps the frame, writes the rectified JPEG to `captured_frames/rectified/` (plus `latest_rectified.jpg`), and stores it in the `rectified_image` field.
    4. The sheet detail page now shows both the raw and rectified previews (when available) alongside the metadata from the most recent `CalibrationArtifact`.
 
+   The **Run Calibration** button on the sheet detail page invokes the calibrate flow above (including grabbing a fresh still before the mouse-click step). **Start Motion Capture** fires off the `capture` management command in the background so it can continue saving frames whenever motion is detected, even after the web request returns.
+
 ## Troubleshooting
 
 - **`Cannot open camera`**: verify the `--camera-index`, unplug/replug the HDMI capture, or close any software already using it.

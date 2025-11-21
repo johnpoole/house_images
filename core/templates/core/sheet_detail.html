@@ -223,14 +223,14 @@
                     <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
                     <input type="hidden" name="side" value="{{ camera.side }}">
                     <input type="hidden" name="next" value="{{ request.path }}">
-                    <button type="submit">Calibrate</button>
+                    <button type="submit">Run Calibration</button>
                 </form>
-                <form action="{% url 'capture' %}" method="post">
+                <form action="{% url 'motion_capture' %}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
                     <input type="hidden" name="side" value="{{ camera.side }}">
                     <input type="hidden" name="next" value="{{ request.path }}">
-                    <button type="submit">Capture Frame</button>
+                    <button type="submit">Start Motion Capture</button>
                 </form>
             </div>
         </div>

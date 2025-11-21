@@ -10,5 +10,6 @@ urlpatterns = [
     path('sheet/<int:sheet_id>/', views.sheet_detail, name='sheet_detail'),
     path('update_camera/', views.update_camera, name='update_camera'),
     path('calibrate/', views.trigger_calibrate, name='calibrate'),
-    path('capture/', views.trigger_capture, name='capture'),
+    path('motion-capture/', views.trigger_motion_capture, name='motion_capture'),
+    path('capture/', views.trigger_motion_capture, name='capture'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
