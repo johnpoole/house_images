@@ -36,7 +36,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-If you are on Linux/macOS, drop the `cv2.CAP_DSHOW` flag in scripts that open the camera.
+Camera access now auto-selects the appropriate OpenCV backend (DirectShow on Windows, V4L2 on Linux). You no longer need to edit `cv2.CAP_DSHOW` flags when switching platforms.
 
 ## Calibration Workflow
 
@@ -123,7 +123,7 @@ Visit `http://localhost:8000/` to reach the dashboard. The views use `core.utils
 - **`Cannot open camera`**: verify the `--camera-index`, unplug/replug the HDMI capture, or close any software already using it.
 - **`Crop rectangle extends outside frame bounds`**: re-run `compute_crop.py` after changing rectified dimensions or distortion coefficients.
 - **GUI hangs/not responding**: when running on a headless host, pass `--no-display` or configure X forwarding.
-- **Different OS**: replace `cv2.CAP_DSHOW` with your platform’s backend (or pass `0` to `VideoCapture`) and adjust the activation commands accordingly.
+- **Different OS**: the app now chooses the capture backend automatically, but you still need the corresponding system drivers (DirectShow on Windows, `v4l2loopback`/`v4l2-ctl` on Linux) and access permissions for the user running Django.
 
 ## Next Steps
 

@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 
 from .models import CapturedFrame
+from .utils import open_camera
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
 LATEST_FRAME_ALIAS = 'latest_frame.jpg'
@@ -15,7 +16,7 @@ LATEST_FRAME_ALIAS = 'latest_frame.jpg'
 
 def capture_single_frame(camera):
     """Grab a single frame from the given camera and persist it for calibration."""
-    cap = cv2.VideoCapture(camera.device_index, cv2.CAP_DSHOW)  # type: ignore[attr-defined]
+    cap = open_camera(camera.device_index)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera index {camera.device_index}.")
     try:

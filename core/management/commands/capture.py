@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from core.models import Camera, CapturedFrame
+from core.utils import open_camera
 
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
@@ -75,7 +76,7 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Starting capture for {camera} on device {camera.device_index}"))
 
-        cap = cv2.VideoCapture(camera.device_index, cv2.CAP_DSHOW)
+        cap = open_camera(camera.device_index)
         if not cap.isOpened():
             self.stderr.write(self.style.ERROR(f"Could not open camera index {camera.device_index}"))
             return

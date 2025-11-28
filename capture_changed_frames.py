@@ -7,6 +7,8 @@ import time
 from datetime import datetime
 from typing import Optional, Tuple
 
+from core.utils import open_camera
+
 # ==== CONFIG ====
 DEFAULT_CAMERA_INDEX = 0  # Change to 1, 2, ... if your HDMI-USB device isn't at 0
 OUTPUT_DIR = "captured_frames"
@@ -116,7 +118,7 @@ def list_available_cameras(max_index: int) -> None:
     print("Probing camera indexes 0..{}".format(max_index))
     found_any = False
     for idx in range(max_index + 1):
-        cap = cv2.VideoCapture(idx, cv2.CAP_DSHOW)
+        cap = open_camera(idx)
         try:
             if cap.isOpened():
                 print(f"  Index {idx}: AVAILABLE")
@@ -236,7 +238,7 @@ def main():
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    cap = cv2.VideoCapture(args.camera_index, cv2.CAP_DSHOW)  # CAP_DSHOW is good for Windows; omit on Linux
+    cap = open_camera(args.camera_index)
 
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open camera at index {args.camera_index}")

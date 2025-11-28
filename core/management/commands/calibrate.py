@@ -9,6 +9,7 @@ from django.core.management.base import CommandError
 from core.calibration_pipeline import CalibrationComputationError
 from core.calibration_service import create_calibration_session
 from core.models import Camera
+from core.utils import open_camera
 
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
@@ -54,7 +55,7 @@ class Command(BaseCommand):
         ))
 
     def _capture_reference_frame(self, camera):
-        cap = cv2.VideoCapture(camera.device_index, cv2.CAP_DSHOW)
+        cap = open_camera(camera.device_index)
         if not cap.isOpened():
             raise CommandError(f"Cannot open camera index {camera.device_index} for calibration capture")
         try:
