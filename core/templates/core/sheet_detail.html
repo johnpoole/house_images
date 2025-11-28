@@ -157,6 +157,27 @@
             font-size: 0.8em;
             margin-top: 5px;
         }
+
+        .scan-status {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #555;
+        }
+
+        .scan-results {
+            margin-top: 8px;
+            font-size: 0.85em;
+            color: #333;
+        }
+
+        .scan-results button {
+            margin-top: 4px;
+            padding: 4px 8px;
+            font-size: 0.85em;
+            background: #f1f5ff;
+            color: #0b4aa7;
+            border: 1px solid #c3d4ff;
+        }
     </style>
 </head>
 
@@ -220,9 +241,12 @@
                            placeholder="http://camera.local/latest.jpg"
                            style="width:100%;padding:6px;margin-top:4px;">
                     <small style="display:block;color:#666;margin-top:4px;">If set, frames are fetched over HTTP instead of a local device.</small>
-                    <div style="margin-top:10px;">
+                    <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="submit">Save Source</button>
+                        <button type="button" onclick="scanNetworkForCamera('{{ camera.side }}')">Scan Network</button>
                     </div>
+                    <div class="scan-status" id="scan_status_{{ camera.side }}"></div>
+                    <div class="scan-results" id="scan_results_{{ camera.side }}"></div>
                 </form>
             </div>
 
@@ -335,5 +359,57 @@
         {% endfor %}
     </div>
 </body>
+
+<script>
+    const scanEndpoint = "{% url 'scan_snapshot_cameras' %}";
+
+    function scanNetworkForCamera(side) {
+        const statusEl = document.getElementById(`scan_status_${side}`);
+        const resultsEl = document.getElementById(`scan_results_${side}`);
+        if (!statusEl || !resultsEl) {
+            return;
+        }
+        statusEl.textContent = 'Scanning local network for snapshot cameras...';
+        resultsEl.innerHTML = '';
+        fetch(scanEndpoint)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Scan failed');
+                }
+                return response.json();
+            })
+            .then(data => {
+                const subnet = data.subnet || 'local network';
+                const hosts = data.hosts || [];
+                if (!hosts.length) {
+                    statusEl.textContent = `No snapshot servers responded on ${subnet}.`;
+                    return;
+                }
+                statusEl.textContent = `Found ${hosts.length} server(s) on ${subnet}. Click to use:`;
+                const fragment = document.createDocumentFragment();
+                hosts.forEach(host => {
+                    const wrap = document.createElement('div');
+                    const button = document.createElement('button');
+                    button.type = 'button';
+                    button.textContent = host.url;
+                    button.addEventListener('click', () => {
+                        const input = document.getElementById(`snapshot_url_${side}`);
+                        if (input) {
+                            input.value = host.url;
+                            input.focus();
+                        }
+                    });
+                    wrap.appendChild(button);
+                    fragment.appendChild(wrap);
+                });
+                resultsEl.innerHTML = '';
+                resultsEl.appendChild(fragment);
+            })
+            .catch(err => {
+                console.error(err);
+                statusEl.textContent = 'Unable to scan the network for cameras.';
+            });
+    }
+</script>
 
 </html>

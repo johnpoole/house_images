@@ -16,4 +16,5 @@ urlpatterns = [
     path('motion-capture/', views.trigger_motion_capture, name='motion_capture'),
     path('capture/', views.trigger_motion_capture, name='capture'),
     path('stop-motion-capture/', views.stop_motion_capture, name='stop_motion_capture'),
+    path('api/scan-cameras/', views.scan_snapshot_cameras, name='scan_snapshot_cameras'),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

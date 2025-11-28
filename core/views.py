@@ -6,11 +6,13 @@ from django.conf import settings
 from django.db.models import Prefetch
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
+from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from core.calibration_pipeline import CalibrationComputationError
 from core.calibration_service import create_calibration_session
 from core.capture_utils import capture_single_frame
+from core.network_utils import detect_ipv4_prefix, scan_snapshot_hosts
 from .platform_utils import (
     get_background_python_executable,
     launch_detached_process,
@@ -385,3 +387,21 @@ def stop_motion_capture(request):
             camera.save(update_fields=['motion_capture_pid'])
         return redirect(next_url)
     return redirect('dashboard')
+
+
+def scan_snapshot_cameras(request):
+    prefix = detect_ipv4_prefix()
+    if not prefix:
+        return JsonResponse({'error': 'Unable to determine local IPv4 network.'}, status=503)
+    hosts = scan_snapshot_hosts(prefix)
+    payload = [
+        {
+            'ip': host.ip,
+            'url': host.url,
+            'status_code': host.status_code,
+            'content_type': host.content_type,
+            'content_length': host.content_length,
+        }
+        for host in hosts
+    ]
+    return JsonResponse({'subnet': f'{prefix}.0/24', 'hosts': payload})

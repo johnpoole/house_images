@@ -122,6 +122,8 @@ Visit `http://localhost:8000/` to reach the dashboard. The views use `core.utils
 
 Some installations expose each camera as a tiny HTTP server that returns the latest sheet still (e.g., `http://camera-odd.local/latest.jpg`). The Django sheet page now includes a **Snapshot URL** field for each camera card. When you provide a URL, all capture paths (quick still grabs, `manage.py calibrate`, and `manage.py capture`) will fetch frames over HTTP instead of opening a local DirectShow/V4L2 device. Leave the field blank to fall back to a USB/HDMI capture index. You can clear the **Device Index** dropdown to disable local capture entirely when relying on HTTP endpoints.
 
+Use the **Scan Network** button next to the Snapshot URL input to probe the current `/24` subnet for endpoints that respond at `http://<host>:8080/last.jpg`. Any detected hosts are shown as one-click suggestions so you no longer have to type the URLs manually.
+
 ## Troubleshooting
 
 - **`Cannot open camera`**: verify the `--camera-index`, unplug/replug the HDMI capture, or close any software already using it.
