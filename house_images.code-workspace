@@ -1,0 +1,10 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"powershell.cwd": "glencoe_curling_camera_capture"
+	}
+}

@@ -204,43 +204,24 @@
                 Source:
                 {% if camera.snapshot_url %}
                 HTTP snapshot (<code>{{ camera.snapshot_url }}</code>)
-                {% elif camera.device_index is not None %}
-                Device {{ camera.device_index }}
                 {% else %}
                 Not configured
                 {% endif %}
             </div>
 
             <div style="margin-bottom: 15px;">
-                <form action="{% url 'update_camera' %}" method="post">
+                <form action="{% url 'update_camera' %}" method="post" id="camera_source_form_{{ camera.side }}">
                     {% csrf_token %}
                     <input type="hidden" name="sheet_id" value="{{ sheet.number }}">
                     <input type="hidden" name="side" value="{{ camera.side }}">
-                    <label for="device_index_{{ camera.side }}">Device Index:</label>
-                    <select name="device_index" id="device_index_{{ camera.side }}">
-                        <option value="" {% if camera.device_index is None %}selected{% endif %}>No local device</option>
-                        {% for cam_choice in available_cameras %}
-                        {% if camera.device_index == cam_choice.index %}
-                        <option value="{{ cam_choice.index }}" selected>{{ cam_choice.label }}</option>
-                        {% else %}
-                        <option value="{{ cam_choice.index }}">{{ cam_choice.label }}</option>
-                        {% endif %}
-                        {% endfor %}
-
-                        {% if camera.device_index is not None and camera.device_index not in available_indices %}
-                        <option value="{{ camera.device_index }}" selected>
-                            Device {{ camera.device_index }} (Current)
-                        </option>
-                        {% endif %}
-                    </select>
-                    <label for="snapshot_url_{{ camera.side }}" style="display:block;margin-top:10px;">Snapshot URL (optional):</label>
+                    <label for="snapshot_url_{{ camera.side }}" style="display:block;margin-top:0;">Snapshot URL:</label>
                     <input type="url"
                            name="snapshot_url"
                            id="snapshot_url_{{ camera.side }}"
                            value="{{ camera.snapshot_url|default:'' }}"
                            placeholder="http://camera.local/latest.jpg"
                            style="width:100%;padding:6px;margin-top:4px;">
-                    <small style="display:block;color:#666;margin-top:4px;">If set, frames are fetched over HTTP instead of a local device.</small>
+                    <small style="display:block;color:#666;margin-top:4px;">Frames are always fetched from this HTTP endpoint.</small>
                     <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
                         <button type="submit">Save Source</button>
                         <button type="button" onclick="scanNetworkForCamera('{{ camera.side }}')">Scan Network</button>
@@ -250,11 +231,21 @@
                 </form>
             </div>
 
-            {% if last_frame %}
+            {% if camera.snapshot_url or last_frame %}
             <div class="preview-grid">
+                {% if camera.snapshot_url %}
                 <div>
-                    <div class="preview-label">Raw Frame</div>
-                    <img src="{{ last_frame.image.url }}" class="img-preview">
+                    <div class="preview-label">Live Snapshot</div>
+                    <img src="{{ camera.snapshot_url }}{% if '?' in camera.snapshot_url %}&{% else %}?{% endif %}ts={{ snapshot_cache_bust }}"
+                         class="img-preview"
+                         alt="Live snapshot"
+                         onerror="this.style.display='none';">
+                </div>
+                {% endif %}
+                {% if last_frame %}
+                <div>
+                    <div class="preview-label">Captured Frame</div>
+                    <img src="{{ last_frame.image.url }}" class="img-preview secondary">
                 </div>
                 {% if last_frame.rectified_image %}
                 <div>
@@ -262,8 +253,11 @@
                     <img src="{{ last_frame.rectified_image.url }}" class="img-preview secondary">
                 </div>
                 {% endif %}
+                {% endif %}
             </div>
+            {% if last_frame %}
             <div class="timestamp">Last captured: {{ last_frame.timestamp }}</div>
+            {% endif %}
             {% else %}
             <div class="img-preview"
                 style="display:flex;align-items:center;justify-content:center;color:#999;height:300px;">
@@ -366,8 +360,12 @@
     function scanNetworkForCamera(side) {
         const statusEl = document.getElementById(`scan_status_${side}`);
         const resultsEl = document.getElementById(`scan_results_${side}`);
+        const form = document.getElementById(`camera_source_form_${side}`);
         if (!statusEl || !resultsEl) {
             return;
+        }
+        if (!form) {
+            console.warn(`Missing form for ${side} camera`);
         }
         statusEl.textContent = 'Scanning local network for snapshot cameras...';
         resultsEl.innerHTML = '';
@@ -392,13 +390,7 @@
                     const button = document.createElement('button');
                     button.type = 'button';
                     button.textContent = host.url;
-                    button.addEventListener('click', () => {
-                        const input = document.getElementById(`snapshot_url_${side}`);
-                        if (input) {
-                            input.value = host.url;
-                            input.focus();
-                        }
-                    });
+                    button.addEventListener('click', () => applySnapshotUrl(side, host.url));
                     wrap.appendChild(button);
                     fragment.appendChild(wrap);
                 });
@@ -409,6 +401,21 @@
                 console.error(err);
                 statusEl.textContent = 'Unable to scan the network for cameras.';
             });
+    }
+
+    function applySnapshotUrl(side, url) {
+        const input = document.getElementById(`snapshot_url_${side}`);
+        const form = document.getElementById(`camera_source_form_${side}`);
+        const statusEl = document.getElementById(`scan_status_${side}`);
+        if (!input || !form) {
+            console.warn(`Unable to apply snapshot URL for ${side}`);
+            return;
+        }
+        input.value = url;
+        if (statusEl) {
+            statusEl.textContent = 'Using ' + url + '...';
+        }
+        form.submit();
     }
 </script>
 

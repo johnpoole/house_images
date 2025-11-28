@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import time
 
 from django.conf import settings
 from django.db.models import Prefetch
@@ -19,7 +20,6 @@ from .platform_utils import (
     terminate_process,
 )
 from .models import Sheet, Camera, CapturedFrame, CalibrationArtifact, CalibrationSession
-from .utils import labeled_camera_choices, list_available_cameras
 
 
 def _frame_exists(frame):
@@ -54,9 +54,6 @@ def _ensure_frame_available(camera, frame=None):
 
 def sheet_detail(request, sheet_id):
     sheet = get_object_or_404(Sheet, number=sheet_id)
-
-    available_indices = list_available_cameras(max_range=4)
-    available_cameras = labeled_camera_choices(max_range=4)
 
     frame_prefetch = Prefetch(
         'frames',
@@ -123,38 +120,28 @@ def sheet_detail(request, sheet_id):
 
     return render(request, 'core/sheet_detail.html', {
         'sheet': sheet,
-        'available_indices': available_indices,
-        'available_cameras': available_cameras,
         'camera_cards': camera_cards,
+        'snapshot_cache_bust': int(time.time()),
     })
 
 def update_camera(request):
     if request.method == 'POST':
         sheet_num = request.POST.get('sheet_id')
         side = request.POST.get('side')
-        new_index = request.POST.get('device_index')
         snapshot_url = (request.POST.get('snapshot_url') or '').strip()
         
         try:
             camera = Camera.objects.get(sheet__number=sheet_num, side=side)
             update_fields = []
-            if new_index is not None:
-                new_index = new_index.strip()
-                if new_index == '':
-                    camera.device_index = None
-                else:
-                    camera.device_index = int(new_index)
-                update_fields.append('device_index')
+            camera.device_index = None
             camera.snapshot_url = snapshot_url
-            update_fields.append('snapshot_url')
+            update_fields.extend(['device_index', 'snapshot_url'])
             camera.save(update_fields=update_fields)
-            if not camera.snapshot_url and camera.device_index is None:
-                messages.warning(request, f"{side.capitalize()} camera has no capture source configured.")
+
+            if not camera.snapshot_url:
+                messages.warning(request, f"{side.capitalize()} camera has no snapshot URL configured.")
             else:
-                source_desc = camera.snapshot_url or (
-                    f"Device {camera.device_index}" if camera.device_index is not None else 'Unassigned'
-                )
-                messages.success(request, f"Updated {side} camera source to {source_desc}")
+                messages.success(request, f"Updated {side} camera snapshot URL.")
         except Exception as exc:
             messages.error(request, f"Error updating camera: {exc}")
             
