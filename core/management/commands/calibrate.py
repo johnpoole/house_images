@@ -8,8 +8,8 @@ from django.core.management.base import CommandError
 
 from core.calibration_pipeline import CalibrationComputationError
 from core.calibration_service import create_calibration_session
+from core.capture_utils import CameraFrameSource
 from core.models import Camera
-from core.utils import open_camera
 
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
@@ -55,15 +55,11 @@ class Command(BaseCommand):
         ))
 
     def _capture_reference_frame(self, camera):
-        cap = open_camera(camera.device_index)
-        if not cap.isOpened():
-            raise CommandError(f"Cannot open camera index {camera.device_index} for calibration capture")
         try:
-            ret, frame = cap.read()
-        finally:
-            cap.release()
-        if not ret:
-            raise CommandError("Failed to grab frame from camera")
+            with CameraFrameSource(camera) as source:
+                frame = source.read()
+        except RuntimeError as exc:
+            raise CommandError(str(exc)) from exc
 
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
         capture_dir = os.path.join(SESSION_OUTPUT_ROOT, 'captures')

@@ -131,14 +131,30 @@ def update_camera(request):
         sheet_num = request.POST.get('sheet_id')
         side = request.POST.get('side')
         new_index = request.POST.get('device_index')
+        snapshot_url = (request.POST.get('snapshot_url') or '').strip()
         
         try:
             camera = Camera.objects.get(sheet__number=sheet_num, side=side)
-            camera.device_index = int(new_index)
-            camera.save()
-            messages.success(request, f"Updated {side} camera to Device {new_index}")
-        except Exception as e:
-            messages.error(request, f"Error updating camera: {str(e)}")
+            update_fields = []
+            if new_index is not None:
+                new_index = new_index.strip()
+                if new_index == '':
+                    camera.device_index = None
+                else:
+                    camera.device_index = int(new_index)
+                update_fields.append('device_index')
+            camera.snapshot_url = snapshot_url
+            update_fields.append('snapshot_url')
+            camera.save(update_fields=update_fields)
+            if not camera.snapshot_url and camera.device_index is None:
+                messages.warning(request, f"{side.capitalize()} camera has no capture source configured.")
+            else:
+                source_desc = camera.snapshot_url or (
+                    f"Device {camera.device_index}" if camera.device_index is not None else 'Unassigned'
+                )
+                messages.success(request, f"Updated {side} camera source to {source_desc}")
+        except Exception as exc:
+            messages.error(request, f"Error updating camera: {exc}")
             
         return redirect('sheet_detail', sheet_id=sheet_num)
     return redirect('dashboard')

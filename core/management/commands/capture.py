@@ -7,8 +7,8 @@ from datetime import datetime
 from django.conf import settings
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
+from core.capture_utils import CameraFrameSource
 from core.models import Camera, CapturedFrame
-from core.utils import open_camera
 
 
 CAPTURED_FRAMES_DIR = os.path.join(settings.BASE_DIR, 'captured_frames')
@@ -74,11 +74,19 @@ class Command(BaseCommand):
             self.stderr.write(self.style.ERROR(f"Camera for Sheet {sheet_num} ({side}) not found in DB"))
             return
 
-        self.stdout.write(self.style.SUCCESS(f"Starting capture for {camera} on device {camera.device_index}"))
+        if camera.snapshot_url:
+            self.stdout.write(self.style.SUCCESS(f"Starting capture for {camera} via HTTP {camera.snapshot_url}"))
+        elif camera.device_index is not None:
+            self.stdout.write(self.style.SUCCESS(f"Starting capture for {camera} on device {camera.device_index}"))
+        else:
+            self.stderr.write(self.style.ERROR("Camera is missing both a device index and snapshot URL."))
+            return
 
-        cap = open_camera(camera.device_index)
-        if not cap.isOpened():
-            self.stderr.write(self.style.ERROR(f"Could not open camera index {camera.device_index}"))
+        frame_source = CameraFrameSource(camera)
+        try:
+            frame_source.open()
+        except RuntimeError as exc:
+            self.stderr.write(self.style.ERROR(str(exc)))
             return
 
         rectifier = self._build_rectifier(camera)
@@ -93,9 +101,10 @@ class Command(BaseCommand):
 
         try:
             while True:
-                ret, frame = cap.read()
-                if not ret:
-                    self.stdout.write(self.style.WARNING("Failed to read frame"))
+                try:
+                    frame = frame_source.read()
+                except RuntimeError as exc:
+                    self.stderr.write(self.style.WARNING(str(exc)))
                     time.sleep(options['poll_interval'])
                     continue
 
@@ -126,7 +135,7 @@ class Command(BaseCommand):
         except KeyboardInterrupt:
             self.stdout.write(self.style.SUCCESS("Stopping capture"))
         finally:
-            cap.release()
+            frame_source.release()
 
     def _build_rectifier(self, camera):
         if not camera.is_calibrated or not camera.calibration_dir:

@@ -118,6 +118,10 @@ Visit `http://localhost:8000/` to reach the dashboard. The views use `core.utils
    The **Run Calibration** button on the sheet detail page invokes the calibrate flow above (including grabbing a fresh still before the mouse-click step). **Start Motion Capture** fires off the `capture` management command in the background so it can continue saving frames whenever motion is detected, even after the web request returns.
    If a capture session is already running for that camera, the UI automatically switches the button label to **Stop Motion Capture** so you can terminate the stored PID without leaving the dashboard.
 
+### HTTP Snapshot Cameras
+
+Some installations expose each camera as a tiny HTTP server that returns the latest sheet still (e.g., `http://camera-odd.local/latest.jpg`). The Django sheet page now includes a **Snapshot URL** field for each camera card. When you provide a URL, all capture paths (quick still grabs, `manage.py calibrate`, and `manage.py capture`) will fetch frames over HTTP instead of opening a local DirectShow/V4L2 device. Leave the field blank to fall back to a USB/HDMI capture index. You can clear the **Device Index** dropdown to disable local capture entirely when relying on HTTP endpoints.
+
 ## Troubleshooting
 
 - **`Cannot open camera`**: verify the `--camera-index`, unplug/replug the HDMI capture, or close any software already using it.

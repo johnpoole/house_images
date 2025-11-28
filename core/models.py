@@ -13,7 +13,15 @@ class Camera(models.Model):
     ]
     sheet = models.ForeignKey(Sheet, on_delete=models.CASCADE, related_name='cameras')
     side = models.CharField(max_length=4, choices=SIDE_CHOICES)
-    device_index = models.IntegerField(help_text="Camera device index (e.g. 0, 1, 2)")
+    device_index = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="Local camera device index (e.g. 0, 1, 2)",
+    )
+    snapshot_url = models.URLField(
+        blank=True,
+        help_text="HTTP endpoint that returns the latest JPEG still for this camera",
+    )
     is_calibrated = models.BooleanField(default=False)
     calibration_dir = models.CharField(max_length=255, blank=True, help_text="Path to calibration files")
     motion_capture_pid = models.IntegerField(null=True, blank=True, help_text="PID of the running capture process, if any")
