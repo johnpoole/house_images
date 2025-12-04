@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files import File
 from django.db import transaction
 
+from .auto_calibration import generate_auto_calibration
 from .calibration_pipeline import CalibrationComputationError, run_calibration_pipeline
 from .models import CalibrationLinePoint, CalibrationSession
 
@@ -27,7 +28,17 @@ def _normalize_lines(lines: Iterable[Sequence[Sequence[float]]]) -> List[List[tu
     return normalized
 
 
-def create_calibration_session(camera, image_path: str, lines: Iterable[Sequence[Sequence[float]]]):
+def create_calibration_session(
+    camera,
+    image_path: str,
+    lines: Iterable[Sequence[Sequence[float]]] | None = None,
+):
+    auto_features = {}
+    if lines is None:
+        auto_result = generate_auto_calibration(image_path)
+        lines = auto_result.lines
+        auto_features = auto_result.features
+
     cleaned_lines = _normalize_lines(lines)
     if not cleaned_lines:
         raise CalibrationComputationError('No calibration lines supplied.')
@@ -45,10 +56,13 @@ def create_calibration_session(camera, image_path: str, lines: Iterable[Sequence
     x, y, w, h = result.crop_rect
     session.fit_error = result.fit_error
     session.crop_rect = {'x': int(x), 'y': int(y), 'w': int(w), 'h': int(h)}
-    session.metadata = {
+    metadata = {
         'best_combo': result.best_combo,
         'line_count': len(cleaned_lines),
     }
+    if auto_features:
+        metadata['auto_features'] = auto_features
+    session.metadata = metadata
     session.artifact_dir = rel_dir
     session.save(update_fields=['fit_error', 'crop_rect', 'metadata', 'artifact_dir'])
 

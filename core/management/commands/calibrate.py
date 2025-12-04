@@ -41,17 +41,13 @@ class Command(BaseCommand):
         else:
             image_path = self._capture_reference_frame(camera)
 
-        lines = self._collect_line_points(image_path)
-        if not lines:
-            raise CommandError("No lines were recorded; calibration aborted.")
-
         try:
-            create_calibration_session(camera, image_path, lines)
+            session = create_calibration_session(camera, image_path)
         except CalibrationComputationError as exc:
             raise CommandError(str(exc)) from exc
 
         self.stdout.write(self.style.SUCCESS(
-            "Calibration session captured. Review and accept it from the Django sheet page."
+            f"Auto-calibration session {session.id} captured. Review and accept it from the Django sheet page."
         ))
 
     def _capture_reference_frame(self, camera):
@@ -73,45 +69,4 @@ class Command(BaseCommand):
         self.stdout.write(f"Stored reference frame at {capture_path} (latest alias updated)")
         return capture_path
 
-    def _collect_line_points(self, image_path):
-        """Launches an interactive OpenCV window to collect line clicks."""
-        img = cv2.imread(image_path)
-        if img is None:
-            raise CommandError(f"Unable to read image at {image_path}")
-
-        window = 'Calibration - Click Lines'
-        display = img.copy()
-        current_line = []
-        lines = []
-
-        self.stdout.write("Mouse controls: left-click to add points, 'n' to store the current line, 's' to finish, ESC to abort.")
-
-        def mouse_cb(event, x, y, _flags, _param):
-            nonlocal current_line
-            if event == cv2.EVENT_LBUTTONDOWN:
-                current_line.append((x, y))
-                cv2.circle(display, (x, y), 4, (0, 255, 0), -1)
-                cv2.imshow(window, display)
-
-        cv2.namedWindow(window, cv2.WINDOW_NORMAL)
-        cv2.setMouseCallback(window, mouse_cb)
-        cv2.imshow(window, display)
-
-        while True:
-            key = cv2.waitKey(20) & 0xFF
-            if key == 27:  # ESC cancels
-                lines = []
-                break
-            if key == ord('n'):
-                if current_line:
-                    lines.append(current_line)
-                    current_line = []
-            if key == ord('s'):
-                if current_line:
-                    lines.append(current_line)
-                    current_line = []
-                if lines:
-                    break
-
-        cv2.destroyAllWindows()
-        return lines
+    # Manual tracing removed; calibration is now fully automatic.

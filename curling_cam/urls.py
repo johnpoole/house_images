@@ -10,7 +10,6 @@ urlpatterns = [
     path('sheet/<int:sheet_id>/', views.sheet_detail, name='sheet_detail'),
     path('update_camera/', views.update_camera, name='update_camera'),
     path('calibration/start/<int:sheet_id>/<str:side>/', views.start_calibration, name='start_calibration'),
-    path('calibration/submit/', views.submit_calibration, name='submit_calibration'),
     path('calibration/accept/', views.accept_calibration, name='accept_calibration'),
     path('calibration/reject/', views.reject_calibration, name='reject_calibration'),
     path('motion-capture/', views.trigger_motion_capture, name='motion_capture'),

@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 import time
@@ -104,11 +103,14 @@ def sheet_detail(request, sheet_id):
             if crop:
                 crop_text = f"({crop.get('x', '?')}, {crop.get('y', '?')}) {crop.get('w', '?')}x{crop.get('h', '?')}"
             best_combo = None
+            auto_features = None
             if pending_session.metadata:
                 best_combo = pending_session.metadata.get('best_combo')
+                auto_features = pending_session.metadata.get('auto_features') if pending_session.metadata else None
             pending_meta = {
                 'crop_text': crop_text,
                 'best_combo': best_combo,
+                'auto_features': auto_features,
             }
         camera_cards.append({
             'camera': cam,
@@ -121,7 +123,6 @@ def sheet_detail(request, sheet_id):
     return render(request, 'core/sheet_detail.html', {
         'sheet': sheet,
         'camera_cards': camera_cards,
-        'snapshot_cache_bust': int(time.time()),
     })
 
 def update_camera(request):
@@ -148,6 +149,7 @@ def update_camera(request):
         return redirect('sheet_detail', sheet_id=sheet_num)
     return redirect('dashboard')
 
+@require_POST
 def start_calibration(request, sheet_id, side):
     side = side.lower()
     if side not in ('odd', 'even'):
@@ -167,62 +169,22 @@ def start_calibration(request, sheet_id, side):
             messages.error(request, str(exc))
             return redirect('sheet_detail', sheet_id=sheet_id)
 
-    context = {
-        'sheet': camera.sheet,
-        'camera': camera,
-        'frame': frame,
-        'image_url': request.build_absolute_uri(frame.image.url),
-        'next': request.GET.get('next') or request.META.get('HTTP_REFERER') or '',
-    }
-    return render(request, 'core/calibration.html', context)
-
-
-@require_POST
-def submit_calibration(request):
-    sheet_num = request.POST.get('sheet_id')
-    side = request.POST.get('side')
-    frame_id = request.POST.get('frame_id')
-    next_url = request.POST.get('next') or None
-    lines_json = request.POST.get('lines_json')
-
-    if not all([sheet_num, side, frame_id, lines_json]):
-        messages.error(request, "Missing calibration data; please try again.")
-        return redirect(next_url or 'dashboard')
-
-    try:
-        frame = CapturedFrame.objects.select_related('camera', 'camera__sheet').get(id=int(frame_id))
-    except (CapturedFrame.DoesNotExist, ValueError):
-        messages.error(request, "Selected frame is no longer available.")
-        return redirect(next_url or 'dashboard')
-
-    camera = frame.camera
-    if str(camera.sheet.number) != str(sheet_num) or camera.side != side:
-        messages.error(request, "Calibration request did not match the selected camera.")
-        return redirect('sheet_detail', sheet_id=camera.sheet.number)
-
-    try:
-        parsed_lines = json.loads(lines_json)
-    except json.JSONDecodeError:
-        messages.error(request, "Unable to parse the clicked line data; please retry.")
-        return redirect('sheet_detail', sheet_id=camera.sheet.number)
-
-    if not isinstance(parsed_lines, list) or len(parsed_lines) < 3:
-        messages.error(request, "Please trace all three sheet lines before saving.")
-        return redirect('start_calibration', sheet_id=camera.sheet.number, side=camera.side)
-
     image_path = frame.image.path
     if not os.path.exists(image_path):
-        messages.error(request, "Raw frame file is missing from disk; capture a new frame and try again.")
-        return redirect('sheet_detail', sheet_id=camera.sheet.number)
+        messages.error(request, "Calibration frame is missing from disk; capture a new still and retry.")
+        return redirect('sheet_detail', sheet_id=sheet_id)
 
     try:
-        create_calibration_session(camera, image_path, parsed_lines)
+        session = create_calibration_session(camera, image_path)
     except CalibrationComputationError as exc:
         messages.error(request, str(exc))
-        return redirect('sheet_detail', sheet_id=camera.sheet.number)
+        return redirect('sheet_detail', sheet_id=sheet_id)
 
-    messages.success(request, "Calibration session recorded. Review the preview on the sheet page to accept it.")
-    return redirect('sheet_detail', sheet_id=camera.sheet.number)
+    messages.success(
+        request,
+        f"Auto-calibration session {session.id} created. Review the pending preview on this sheet before accepting.",
+    )
+    return redirect('sheet_detail', sheet_id=sheet_id)
 
 
 def accept_calibration(request):

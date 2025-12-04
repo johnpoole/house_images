@@ -231,21 +231,12 @@
                 </form>
             </div>
 
-            {% if camera.snapshot_url or last_frame %}
+            {% if last_frame %}
             <div class="preview-grid">
-                {% if camera.snapshot_url %}
-                <div>
-                    <div class="preview-label">Live Snapshot</div>
-                    <img src="{{ camera.snapshot_url }}{% if '?' in camera.snapshot_url %}&{% else %}?{% endif %}ts={{ snapshot_cache_bust }}"
-                         class="img-preview"
-                         alt="Live snapshot"
-                         onerror="this.style.display='none';">
-                </div>
-                {% endif %}
                 {% if last_frame %}
                 <div>
                     <div class="preview-label">Captured Frame</div>
-                    <img src="{{ last_frame.image.url }}" class="img-preview secondary">
+                    <img src="{{ last_frame.image.url }}" class="img-preview">
                 </div>
                 {% if last_frame.rectified_image %}
                 <div>
@@ -255,9 +246,7 @@
                 {% endif %}
                 {% endif %}
             </div>
-            {% if last_frame %}
             <div class="timestamp">Last captured: {{ last_frame.timestamp }}</div>
-            {% endif %}
             {% else %}
             <div class="img-preview"
                 style="display:flex;align-items:center;justify-content:center;color:#999;height:300px;">
@@ -304,6 +293,9 @@
                     {% if entry.pending_meta.best_combo %}
                     <div>Lens combo (f, k1, k2): {{ entry.pending_meta.best_combo }}</div>
                     {% endif %}
+                    {% if entry.pending_meta.auto_features %}
+                    <div>Auto-detected sheet edges, lines, and houses are stored with this session.</div>
+                    {% endif %}
                 </div>
                 <div class="actions" style="margin-top: 10px;">
                     <form action="{% url 'accept_calibration' %}" method="post">
@@ -323,13 +315,10 @@
             {% endif %}
 
             <div class="actions">
-                {% if entry.last_frame %}
-                <form action="{% url 'start_calibration' sheet.number camera.side %}" method="get">
-                    <button type="submit">Run Calibration</button>
+                <form action="{% url 'start_calibration' sheet.number camera.side %}" method="post">
+                    {% csrf_token %}
+                    <button type="submit">Run Auto Calibration</button>
                 </form>
-                {% else %}
-                <button type="button" disabled title="Capture at least one frame to calibrate.">Run Calibration</button>
-                {% endif %}
                 {% if camera.motion_capture_pid %}
                 <form action="{% url 'stop_motion_capture' %}" method="post">
                     {% csrf_token %}
